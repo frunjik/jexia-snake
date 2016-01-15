@@ -1,0 +1,27 @@
+{
+  "name": "snake",
+  "main": "snake.js",
+  "authors": [
+    "frunjik <frunjik@gmail.com>"
+  ],
+  "description": "jexia snake",
+  "moduleType": [],
+  "keywords": [
+    "jexia",
+    "javascript",
+    "canvas"
+  ],
+  "license": "MIT",
+  "homepage": "",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jexia-sdk-js": "~1.1.4"
+  }
+}
