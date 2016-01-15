@@ -1,0 +1,356 @@
+<html>
+    <head>
+        <style>
+            .outer {
+                display: table;
+                position: absolute;
+                height: 98%;        
+                width: 99%;
+            }
+
+            .middle {
+                display: table-cell;
+                vertical-align: middle;
+            }
+
+            .inner {
+                margin-left: auto;
+                margin-right: auto; 
+                width: /*whatever width you want*/;
+            }            
+        </style>
+    </head>
+    <body>
+ 
+        <div class="outer">
+            <div class="middle">
+                <div class="inner" align="center">
+                    <div id="name" style="display: none">
+                        <h1>Snake</h1>
+                        <div id="result" style="display:none">
+                            <h4>Game Over</h4>
+                            <p>Your current score is <b><span id="score">?</span></b></p>
+                            <p>Your current level is <b><span id="level">?</span></b></p>
+                            <p>Your personal best score is <b><span id="pr_score">?</span></b> at level <b><span id="pr_level">?</span></b></p>
+                            <br/>
+                            <br/>
+                        </div>
+                        <input id="username" type="text" placeholder="Enter your (nick)name ..."></input>
+                        <button id="button" onclick="begin();">Play</button>
+                    </div>
+                    <div id="play" style="display: none">
+                        <canvas id="canvas" width="640" height="640"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+ 
+        <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+        <script src="bower_components/jexia-sdk-js/lib/browser/index.js"></script>        
+        <!-- script src="bower_components/jexia-sdk-js/lib/index.js"></script -->
+        
+        <!-- snake.js defines a global var game -->        
+        <script src="snake.js"></script>
+        
+        <script>
+            var app;                                    // Jexia client app instance 
+            var client;                                 // Jexia client instance
+            var userid;                                 // current user id 
+            var username;                               // current username
+            var userdata;                               // current userdata
+            var dataset;                                // snake dataset instance
+            var JexiaClient;                            // Jexia client class
+            var hasLocalStorage = typeof(Storage) !== "undefined";  // set flag that indicates if we have localStorage
+            var snakeUsers = {};                        // will be read from localStorage
+            
+            /*
+            Kick things off when page is loaded
+            */
+            $(document).ready(function() {
+                init();
+            });
+            
+            /*
+            Initial setup
+            */            
+            function init() {
+                bindEnterKey();
+                
+                game.gameOver = onGameOver;             // assign game callback functions
+                game.leveled  = onLeveled;
+                game.ate      = onAte;
+
+                createJexiaSnakeClient();               // create the jexia instances
+                                
+                resetUserData();                        // set initial userdata
+                loadSnakeUsers();                       // load snakeUsers from localStorage 
+                
+                showElement('#name');                   // show name input and button
+                username = getLastUsername();           // get the last username
+                $('#username')[0].value = username;     // assign it to the input field
+                focusUsername();                        
+            }
+
+            /*
+            Catch username keypresses and click button on Enter key
+            */            
+            function bindEnterKey() {
+                $("#username").keyup(function(event){
+                    if(event.keyCode == 13){
+                        $("#button").click();
+                    }
+                });
+            }
+            
+            /*
+            Try to Load snakeUsers from localstorage
+            snakeUsers = {
+                lastUsername: "name1",
+                users: {
+                    name1: id1,
+                    name2: id2,
+                }
+            }
+            */
+            function loadSnakeUsers() {
+                try {
+                    if(hasLocalStorage) {
+                        snakeUsers = JSON.parse(localStorage.snakeUsers);
+                    }
+                }
+                catch(err) {
+                }
+                if(!snakeUsers.users) {
+                    snakeUsers.users = {};
+                }
+            }
+
+            /*
+            Try to save snakeUsers to localStorage
+            */            
+            function saveSnakeUsers() {
+                if(hasLocalStorage) {
+                    var data = JSON.stringify(snakeUsers); 
+                    localStorage.setItem('snakeUsers', data);
+                }                                
+            }
+            
+            /*
+            Get the lastUsername
+            */
+            function getLastUsername() {
+                return snakeUsers.lastUsername || ''; 
+            }
+
+            /*
+            Set the lastUsername
+            */
+            function setLastUsername(name) {
+                snakeUsers.lastUsername = name;
+                saveSnakeUsers(); 
+            }
+
+            /*
+            Get the Jexia userId id for a username
+            */
+            function getUserId(name) {
+                return snakeUsers.users[name] || ''; 
+            }
+
+            /*
+            Save the Jexia userId for a username
+            */
+            function setUserId(name, id) {
+                snakeUsers.users[name] = id;
+                saveSnakeUsers();
+            }
+
+            /*
+            Set initial userdata
+            */
+            function resetUserData() {
+                userdata = {
+                    username: '',
+                    score_max: 0,
+                    level_max: 1,
+                    score_cur: 0,
+                    level_cur: 1
+                };                
+            }
+
+            /*
+            Load the userdata from jexia
+            */
+            function loadUserData() {
+                var id = getUserId(username);
+
+                var cmd; 
+
+                if(id) {
+                    cmd = dataset.get(id);
+                }
+                else {
+                    userdata = {username: username};
+                    cmd = dataset.create(userdata);
+                }                
+
+                cmd.then(function(data){
+                    if(data && data.id) {
+                        userdata = data;
+                        setUserId(username, userdata.id);
+                    }
+                }).catch(function(error){
+                    console.log(error);
+                });
+            }
+
+            /*
+            Save the userdata to Jexia
+            */            
+            function saveUserData() {
+                if(userdata.id) {
+                    //app.
+                    dataset.update(userdata.id, userdata)
+                    .catch(function(error){
+                        console.log(error);
+                    });
+                }
+            }
+
+            /*
+            Set the current userdata and save to Jexia
+            */            
+            function updateScore(score, level) {
+                userdata.score_cur = score;
+                userdata.level_cur = level;
+                saveUserData();
+            }
+
+            /*
+            Create Jexia client with correct settings
+            */
+            function createJexiaSnakeClient() {
+                JexiaClient = window.jexiaClientBrowser.JexiaClient;
+                client = new JexiaClient({
+                    appId: '844b7210-b61a-11e5-91f4-53e91460fd52',
+                    appKey: '7f926078c751ac8d439e567130fc4550',
+                    appSecret: '9d1ee9732481f4e8eed354a7c27700bd48fcce1e30fcc67d'
+                }).then( function(a) {
+                    // you can start interacting with your app
+                    app = a;
+                    dataset = app.dataset('snake');
+                });                
+            }
+            
+            /*
+            Begin playing the game
+            */
+            function begin() {
+                username = $('#username')[0].value;     // get the username from the input field
+                if(!username) return;                   // if its not valid we bail
+
+                if(userdata.username !== username) {    // if username changed
+                    userdata = {username: username};    // save current username
+                    setLastUsername(username);          // save lastUsername to localStorage
+                }                
+                loadUserData();                         // load userdata from jexia
+                hideElement('#name');                   // hide scores and name fields      
+                showElement('#play');                   // show the game (canvas)      
+                game.start();                           // start running the game
+            }
+
+            /*
+            Update current score in userdata
+            */            
+            function checkHiScore(snake) {
+                userdata.score_cur = snake.score;       // update current score
+                userdata.level_cur = snake.level;
+                if(!userdata.score_max || userdata.score_cur > userdata.score_max) {
+                    userdata.score_max = snake.score    // update hiscore if appropriate
+                    userdata.level_max = snake.level;
+                }
+            }
+
+            /*
+            Set DOM element text
+            */            
+            function setElementText(selector, text) {
+                $(selector)[0].innerText = text;
+            }
+
+            /*
+            Hide DOM elements by selectors
+            */
+            function hideElements(selectors) {
+                selectors.forEach(function(e) {
+                    hideElement(e)
+                });
+            }
+
+            /*
+            Show DOM elements by selectors
+            */
+            function showElements(selectors) {
+                selectors.forEach(function(e) {
+                    showElement(e)
+                });
+            }
+
+            /*
+            Hide single DOM element
+            */            
+            function hideElement(selector) {
+                $(selector)[0].style.display = 'none';
+            }
+            
+            /*
+            Show single DOM element
+            */            
+            function showElement(selector) {
+                $(selector)[0].style.display = '';
+            }
+
+            /*
+            Give focus to username input element
+            */            
+            function focusUsername() {
+                $("#username").focus();                
+            }
+
+            /*
+            Callback when snake eats treasure
+            */
+            function onAte(snake) {
+                //console.log('ate: ' + snake.score);
+                updateScore(snake.score, snake.level);  // when snake ate treasure update the score and send to Jexia        
+            } 
+
+            /*
+            Callback when snake levels
+            */
+            function onLeveled(snake) {
+                //console.log('leveled: ' + snake.level);
+                updateScore(snake.score, snake.level);  // when snake leveled update the score and send to Jexia
+            } 
+
+            /*
+            Callback on game over
+            */
+            function onGameOver(snake) {                // when gameover
+                checkHiScore(snake);                    // update current score
+                saveUserData();                         // save userdata to Jexia                
+                
+                setElementText('#score', snake.score);  // update score
+                setElementText('#level', snake.level);
+                setElementText('#pr_score', userdata.score_max);
+                setElementText('#pr_level', userdata.level_max);
+                
+                setElementText('#button', 'Play again');// update button text
+
+                hideElement('#play');                   // hide game canvas
+                showElements(['#name', '#result']);     // show name and results
+                focusUsername();                
+            } 
+        </script>
+    </body>
+</html>
