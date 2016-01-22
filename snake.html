@@ -17,6 +17,10 @@
                 margin-left: auto;
                 margin-right: auto; 
                 width: /*whatever width you want*/;
+            }
+            
+            p {
+                margin: 0 0 0 0;
             }            
         </style>
     </head>
@@ -28,13 +32,15 @@
                     <div id="name" style="display: none">
                         <h1>Snake</h1>
                         <div id="result" style="display:none">
-                            <h4>Game Over</h4>
+                            <h2>Game Over</h2>
                             <p>Your current score is <b><span id="score">?</span></b></p>
                             <p>Your current level is <b><span id="level">?</span></b></p>
                             <p>Your personal best score is <b><span id="pr_score">?</span></b> at level <b><span id="pr_level">?</span></b></p>
-                            <br/>
-                            <br/>
                         </div>
+                        <div id="hiscores" style="display:none">
+                        </div>
+                        <br/>
+                        <br/>
                         <input id="username" type="text" placeholder="Enter your (nick)name ..."></input>
                         <button id="button" onclick="begin();">Play</button>
                     </div>
@@ -220,7 +226,7 @@
             /*
             Set the current userdata and save to Jexia
             */            
-            function updateScore(score, level) {
+            function updateUserscore(score, level) {
                 userdata.score_cur = score;
                 userdata.level_cur = level;
                 saveUserData();
@@ -243,6 +249,71 @@
             }
             
             /*
+            Create html for hiscore head display
+            */
+            function createHiscoreHead() {
+                return '<thead><tr>' + 
+                    '<th align="right">#</th>' +
+                    '<th align="right">Name</th>' +
+                    '<th align="right">Level</th>' +
+                    '<th align="right">Score</th>' +
+                    '</tr>' +
+                    '<tr><th colspan="4"><hr></th></tr>' +
+                    '</thead>'; 
+            }
+            
+            /*
+            Create html for hiscore line display
+            */
+            function createHiscoreLine(i, score) {
+                return '<tr>' + 
+                        '<td width="1%" align="right">' +
+                        i + 
+                        '</td>' +
+                        '<td width="25%" align="right">' +
+                        score.username + 
+                        '</td>' +
+                        '<td width="25%" align="right">' +
+                        score.level_max + 
+                        '</td>' +
+                        '<td width="25%" align="right">' +
+                        score.score_max + 
+                        '</td>'
+                    '</tr>'; 
+            }
+            
+            /*
+            Create highscore html
+            */
+            function createHighscores(scores) {
+                var nr = 1; 
+                var lines = [];
+                scores.forEach(function(s, i) {
+                    if(s.score_max) {
+                        lines.push(createHiscoreLine(nr, s));
+                        nr = nr + 1;
+                    }
+                });
+                return '<h2>High Scores</h2>' + 
+                    '<table width="800px">' + 
+                    createHiscoreHead() + 
+                    lines.join('') + 
+                    '</table>';
+            }
+            
+            /*
+            Update highscores
+            */            
+            function updateHiScores() {
+                dataset.query({
+                    sort: "score_max DESC",
+                    limit: 10
+                }).then(function(scores) {
+                    $('#hiscores').empty().append(createHighscores(scores));
+                });
+            }                
+            
+            /*
             Begin playing the game
             */
             function begin() {
@@ -262,7 +333,7 @@
             /*
             Update current score in userdata
             */            
-            function checkHiScore(snake) {
+            function checkUserHiScore(snake) {
                 userdata.score_cur = snake.score;       // update current score
                 userdata.level_cur = snake.level;
                 if(!userdata.score_max || userdata.score_cur > userdata.score_max) {
@@ -270,7 +341,7 @@
                     userdata.level_max = snake.level;
                 }
             }
-
+            
             /*
             Set DOM element text
             */            
@@ -322,7 +393,7 @@
             */
             function onAte(snake) {
                 //console.log('ate: ' + snake.score);
-                updateScore(snake.score, snake.level);  // when snake ate treasure update the score and send to Jexia        
+                updateUserscore(snake.score, snake.level);  // when snake ate treasure update the score and send to Jexia        
             } 
 
             /*
@@ -330,15 +401,17 @@
             */
             function onLeveled(snake) {
                 //console.log('leveled: ' + snake.level);
-                updateScore(snake.score, snake.level);  // when snake leveled update the score and send to Jexia
+                updateUserscore(snake.score, snake.level);  // when snake leveled update the score and send to Jexia
             } 
 
             /*
             Callback on game over
             */
             function onGameOver(snake) {                // when gameover
-                checkHiScore(snake);                    // update current score
-                saveUserData();                         // save userdata to Jexia                
+                checkUserHiScore(snake);                // update current user score
+                saveUserData();                         // save userdata to Jexia    
+
+                updateHiScores();
                 
                 setElementText('#score', snake.score);  // update score
                 setElementText('#level', snake.level);
@@ -348,7 +421,7 @@
                 setElementText('#button', 'Play again');// update button text
 
                 hideElement('#play');                   // hide game canvas
-                showElements(['#name', '#result']);     // show name and results
+                showElements(['#name', '#result', '#hiscores']);     // show name, results and hiscores
                 focusUsername();                
             } 
         </script>
